@@ -224,11 +224,13 @@ class CPU:
                 self.V_register[X] = self.delay_timer
                 self.next_pc()
             case 0x0A:
-                for event in pygame.event.get():
-                    if event.type == pygame.KEYDOWN:
-                        cpu.set_key_input_state(KEYMAP.get(event.key))
-                        self.V_register[X] = self.key_input_state
-                        self.next_pc()
+                while True:
+                    for event in pygame.event.get():
+                        if event.type == pygame.KEYDOWN:
+                            cpu.set_key_input_state(KEYMAP.get(event.key))
+                            self.V_register[X] = self.key_input_state
+                            self.next_pc()
+                            return
             case 0x15:
                 # VXの値をディレイタイマにセット
                 self.delay_timer = self.V_register[X]
