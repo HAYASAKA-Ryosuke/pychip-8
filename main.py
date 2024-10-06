@@ -130,15 +130,22 @@ class CPU:
             case 3:
                 self.V_register[X] ^= self.V_register[Y]
             case 4:
-                self.V_register[X] += self.V_register[Y]
+                result = self.V_register[X] + self.V_register[Y]
+                self.V_register[0xF] = 1 if result > 0xFF else 0
+                self.V_register[X] = result & 0xFF  # 8bitにラップ
             case 5:
-                self.V_register[X] -= self.V_register[Y]
+                self.V_register[0xF] = 1 if self.V_register[X] > self.V_register[Y] else 0
+                self.V_register[X] = (self.V_register[X] - self.V_register[Y]) & 0xFF  # 8bitにラップ
             case 6:
-                self.V_register[X] >>= self.V_register[Y]
+                # Vxの最下位ビットをフラグレジスタにセット
+                self.V_register[0xF] = self.V_register[X] & 0x1
+                self.V_register[X] >>= 1
             case 7:
-                self.V_register[X] = self.V_register[Y] - self.V_register[X]
+                self.V_register[0xF] = 1 if self.V_register[Y] > self.V_register[X] else 0
+                self.V_register[X] = (self.V_register[Y] - self.V_register[X]) & 0xFF
             case 0xE:
-                self.V_register[X] <<= 1
+                self.V_register[0xF] = (self.V_register[X] & 0x80) >> 7  # 最上位ビット7bitをVFにセット
+                self.V_register[X] = (self.V_register[X] << 1) & 0xFF  # 8bitにラップ
         self.next_pc()
 
     def execute_category_nine(self, opcode):
@@ -224,17 +231,17 @@ class CPU:
             case 0x33:
                 self.ram[self.I_register] = self.V_register[X] // 100
                 self.ram[self.I_register + 1] = (self.V_register[X] // 10) % 10
-                self.ram[self.I_register + 2] = self.V_register[X] % 100
+                self.ram[self.I_register + 2] = self.V_register[X] % 10
                 self.next_pc()
             case 0x55:
-                for i, data in enumerate(self.V_register[:X]):
+                for i, data in enumerate(self.V_register[:X + 1]):
                     self.ram[self.I_register + i] = data
                 self.I_register += X + 1
                 self.next_pc()
             case 0x65:
-                for i, data in enumerate(self.ram[self.I_register: self.I_register + X]):
+                for i, data in enumerate(self.ram[self.I_register: self.I_register + X + 1]):
                     self.V_register[i] = data
-                self.I_register += X + 1
+                self.I_register += X + 1 
                 self.next_pc()
             case _:
                 print(f"missing opcode(f): 0x{opcode:04X}")
