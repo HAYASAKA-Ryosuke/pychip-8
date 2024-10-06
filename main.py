@@ -2,8 +2,6 @@ import sys
 import pygame
 import random
 
-pygame.KEYDOWN
-
 KEYMAP = {
         pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3, pygame.K_4: 4,
         pygame.K_q: 5, pygame.K_w: 6, pygame.K_e: 7, pygame.K_r: 8,
@@ -50,8 +48,11 @@ class CPU:
         self.delay_timer = 0
         self.key_input_state = None
 
+        self.clock = pygame.time.Clock()
+
     def set_key_input_state(self, value):
         self.key_input_state = value
+        print(self.key_input_state)
 
     def get_bytes(self):
         opcode = (self.ram[self.pc] << 8) | self.ram[self.pc + 1]
@@ -120,7 +121,7 @@ class CPU:
     def execute_category_eight(self, opcode):
         X = (opcode & 0x0F00) >> 8
         Y = (opcode & 0x00F0) >> 4
-        match (opcode & 0x000F):
+        match opcode & 0x000F:
             case 0:
                 self.V_register[X] = self.V_register[Y]
             case 1:
@@ -174,6 +175,7 @@ class CPU:
         N = opcode & 0x000F
         x = self.V_register[X] % self.display.width
         y = self.V_register[Y] % self.display.height
+        self.V_register[0xF] = 0
         for height in range(N):
             sprites = self.ram[self.I_register + height]
             for width in range(8):
@@ -206,6 +208,7 @@ class CPU:
             case 0x07:
                 # ディレイタイマの値をVXにセット
                 self.V_register[X] = self.delay_timer
+                self.next_pc()
             case 0x0A:
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
@@ -241,7 +244,7 @@ class CPU:
             case 0x65:
                 for i, data in enumerate(self.ram[self.I_register: self.I_register + X + 1]):
                     self.V_register[i] = data
-                self.I_register += X + 1 
+                self.I_register += X + 1
                 self.next_pc()
             case _:
                 print(f"missing opcode(f): 0x{opcode:04X}")
@@ -286,12 +289,17 @@ class CPU:
                 print(f"missing opcode: 0x{opcode:04X}")
                 raise opcode
 
+    def update_timers(self):
+        if self.delay_timer > 0:
+            self.delay_timer -= 1
+
     def run(self):
         opcode = self.get_bytes()
         print(f'opcode: 0x{opcode:04X}')
         print(self.pc)
         self.execute(opcode)
         self.display.update()
+        cpu.update_timers()
 
 
 class MonoDisplay:
@@ -336,13 +344,15 @@ class MonoDisplay:
 
 
 if __name__ == '__main__':
-    with open('./3-corax+.ch8', 'rb') as f:
+    with open('./6-keypad.ch8', 'rb') as f:
         rom = f.read()
     display = MonoDisplay()
     cpu = CPU(rom, display)
     display.update()
+    fps = 200
     while True:
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 cpu.set_key_input_state(KEYMAP.get(event.key))
         cpu.run()
+        cpu.clock.tick(fps)
