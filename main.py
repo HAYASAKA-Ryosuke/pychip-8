@@ -2,6 +2,14 @@ import sys
 import pygame
 import random
 
+pygame.KEYDOWN
+
+KEYMAP = {
+        pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3, pygame.K_4: 4,
+        pygame.K_q: 5, pygame.K_w: 6, pygame.K_e: 7, pygame.K_r: 8,
+        pygame.K_a: 9, pygame.K_s: 10, pygame.K_d: 11, pygame.K_f: 12,
+        pygame.K_z: 13, pygame.K_x: 14, pygame.K_c: 15, pygame.K_v: 16
+        }
 
 FONT_SPRIRITES = [
     0xF0, 0x90, 0x90, 0x90, 0xF0,  # 0
@@ -40,6 +48,10 @@ class CPU:
         self.sp = 0  # スタックポインタは8bit
         self.key = [0] * 16
         self.delay_timer = 0
+        self.key_input_state = None
+
+    def set_key_input_state(self, value):
+        self.key_input_state = value
 
     def get_bytes(self):
         opcode = (self.ram[self.pc] << 8) | self.ram[self.pc + 1]
@@ -65,10 +77,22 @@ class CPU:
         self.stack[self.sp] = self.pc
         self.pc = opcode & 0x0FFF
 
+    def execute_category_three(self, opcode):
+        X = (opcode & 0x0F00) >> 8
+        kk = opcode & 0x00FF
+        if self.V_register[X] == kk:
+            self.pc += 2
+
     def execute_category_four(self, opcode):
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
         if self.V_register[X] != kk:
+            self.pc += 2
+
+    def execute_category_five(self, opcode):
+        X = (opcode & 0x0F00) >> 8
+        Y = (opcode & 0x00F0) >> 4
+        if self.V_register[X] == self.V_register[Y]:
             self.pc += 2
 
     def execute_category_six(self, opcode):
@@ -83,8 +107,34 @@ class CPU:
 
     def execute_category_eight(self, opcode):
         X = (opcode & 0x0F00) >> 8
-        kk = opcode & 0x00FF
-        self.V_register[X] += kk
+        Y = (opcode & 0x00F0) >> 4
+        match (opcode & 0x000F):
+            case 0:
+                self.V_register[X] = self.V_register[Y]
+                return
+            case 1:
+                self.V_register[X] |= self.V_register[Y]
+                return
+            case 2:
+                self.V_register[X] &= self.V_register[Y]
+                return
+            case 3:
+                self.V_register[X] ^= self.V_register[Y]
+                return
+            case 4:
+                self.V_register[X] += self.V_register[Y]
+                return
+            case 5:
+                self.V_register[X] -= self.V_register[Y]
+                return
+            case 6:
+                self.V_register[X] >>= self.V_register[Y]
+            case 7:
+                self.V_register[X] = self.V_register[Y] - self.V_register[X]
+                return
+            case 0xE:
+                self.V_register[X] <<= 1
+                return
 
     def execute_category_nine(self, opcode):
         X = (opcode & 0x0F00) >> 8
@@ -92,30 +142,11 @@ class CPU:
         if self.V_register[X] != self.V_register[Y]:
             self.pc += 2
 
-    def execute_category_f(self, opcode):
-        X = (opcode & 0x0F00) >> 8
-        match (opcode & 0x00FF):
-            case 0x07:
-                # ディレイタイマの値をVXにセット
-                self.V_register[X] = self.delay_timer
-            case 0x0A:
-                # キー入力待ち
-                pass
-            case 0x15:
-                # VXの値をディレイタイマにセット
-                self.delay_timer = self.V_register[X]
-            case 0x18:
-                # 音を鳴らす
-                pass
-            case 0x1E:
-                # Vレジスタの値をIレジスタに加算
-                self.I_register += self.V_register[X]
-            case 0x29:
-                # Iレジスタにスプライトのアドレスをセット
-                self.I_register = self.V_register[X] * 5
-            case _:
-                print(f"missing opcode: 0x{opcode:04X}")
-                raise opcode
+    def execute_category_a(self, opcode):
+        self.I_register = opcode & 0x0FFF
+
+    def execute_category_b(self, opcode):
+        self.pc = self.V_register[0] + opcode & 0x0FFF
 
     def execute_category_c(self, opcode):
         X = (opcode & 0x0F00) >> 8
@@ -141,6 +172,61 @@ class CPU:
                 self.display.pixels[screen_y][screen_x] = new_pixel
         self.display.draw()
 
+    def execute_category_e(self, opcode):
+        X = (opcode & 0x0F00) >> 8
+        NN = (opcode & 0x00FF)
+        match NN:
+            case 0x9E:
+                if self.key_input_state == self.V_register[X]:
+                    self.pc += 2
+            case 0xA1:
+                if self.key_input_state != self.V_register[X]:
+                    self.pc += 2
+
+    def execute_category_f(self, opcode):
+        X = (opcode & 0x0F00) >> 8
+        match (opcode & 0x00FF):
+            case 0x07:
+                # ディレイタイマの値をVXにセット
+                self.V_register[X] = self.delay_timer
+            case 0x0A:
+                print('0x0A')
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        cpu.set_key_input_state(KEYMAP.get(event.key))
+                        self.V_register[X] = self.key_input_state
+                    else:
+                        # キー入力されるまで同じ命令を実行する
+                        self.pc -= 2
+
+            case 0x15:
+                # VXの値をディレイタイマにセット
+                self.delay_timer = self.V_register[X]
+            case 0x18:
+                # 音を鳴らす
+                pass
+            case 0x1E:
+                # Vレジスタの値をIレジスタに加算
+                self.I_register += self.V_register[X]
+            case 0x29:
+                # Iレジスタにスプライトのアドレスをセット
+                self.I_register = self.V_register[X] * 5
+            case 0x33:
+                self.ram[self.I_register] = self.V_register[X] // 100
+                self.ram[self.I_register + 1] = (self.V_register[X] // 10) % 10
+                self.ram[self.I_register + 2] = self.V_register[X] % 100
+            case 0x55:
+                for i, data in enumerate(self.V_register[:X]):
+                    self.ram[self.I_register + i] = data
+                self.I_register += X + 1
+            case 0x65:
+                for i, data in enumerate(self.ram[self.I_register: self.I_register + X]):
+                    self.V_register[i] = data
+                self.I_register += X + 1
+            case _:
+                print(f"missing opcode: 0x{opcode:04X}")
+                raise opcode
+
     def execute(self, opcode):
         category = (opcode & 0xF000) >> 12
         match category:
@@ -150,8 +236,12 @@ class CPU:
                 self.execute_category_one(opcode)
             case 0x2:
                 self.execute_category_two(opcode)
+            case 0x3:
+                self.execute_category_three(opcode)
             case 0x4:
                 self.execute_category_four(opcode)
+            case 0x5:
+                self.execute_category_five(opcode)
             case 0x6:
                 self.execute_category_six(opcode)
             case 0x7:
@@ -162,10 +252,14 @@ class CPU:
                 self.execute_category_nine(opcode)
             case 0xA:
                 self.set_index_register(opcode)
+            case 0xB:
+                self.execute_category_b(opcode)
             case 0xC:
                 self.execute_category_c(opcode)
             case 0xD:
                 self.execute_category_d(opcode)
+            case 0xE:
+                self.execute_category_e(opcode)
             case 0xF:
                 self.execute_category_f(opcode)
             case _:
@@ -221,10 +315,13 @@ class MonoDisplay:
 
 
 if __name__ == '__main__':
-    with open('./test3.ch8', 'rb') as f:
+    with open('./test_opcode.ch8', 'rb') as f:
         rom = f.read()
     display = MonoDisplay()
     cpu = CPU(rom, display)
     display.update()
     while True:
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                cpu.set_key_input_state(KEYMAP.get(event.key))
         cpu.run()
