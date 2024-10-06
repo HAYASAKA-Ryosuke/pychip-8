@@ -270,7 +270,8 @@ class CPU:
         opcode = self.get_bytes()
         self.execute(opcode)
         self.display.update()
-        self.pc += 2
+        if opcode != 0:
+            self.pc += 2
 
 
 class MonoDisplay:
