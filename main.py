@@ -1,6 +1,16 @@
 import sys
 import pygame
 import random
+import numpy
+
+
+def generate_beep_sound(freq, duration, sampling_rate):
+    arr_size = sampling_rate * duration * 2
+    x = numpy.linspace(0, arr_size, arr_size)
+    y = numpy.sin(2 * numpy.pi * freq / sampling_rate * x) * 10000
+    y = y.astype(numpy.int16)
+    return y.reshape(int(y.shape[0]/2), 2)
+
 
 KEYMAP = {
         pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3, pygame.K_4: 0xC,
@@ -30,7 +40,7 @@ FONT_SPRIRITES = [
 
 
 class CPU:
-    def __init__(self, rom, display):
+    def __init__(self, rom, display, audio):
         # RAM全体が4KB
         self.ram = [0] * 0x200
         for i in range(len(FONT_SPRIRITES)):
@@ -47,6 +57,7 @@ class CPU:
         self.key = [0] * 16
         self.delay_timer = 0
         self.key_input_state = None
+        self.audio = audio
 
         self.clock = pygame.time.Clock()
 
@@ -221,7 +232,7 @@ class CPU:
                 self.next_pc()
             case 0x18:
                 # 音を鳴らす
-                pass
+                self.audio.play(False, 80, 0)
                 self.next_pc()
             case 0x1E:
                 # Vレジスタの値をIレジスタに加算
@@ -344,10 +355,13 @@ class MonoDisplay:
 
 
 if __name__ == '__main__':
-    with open('./6-keypad.ch8', 'rb') as f:
+    with open('./7-beep.ch8', 'rb') as f:
         rom = f.read()
     display = MonoDisplay()
-    cpu = CPU(rom, display)
+    wave = generate_beep_sound(440, 1, 44100)
+    pygame.mixer.init(frequency=44100, size=-16, channels=1)
+    audio = pygame.sndarray.make_sound(numpy.array(wave * (2 ** 16 // 2 - 1), dtype=numpy.int16))
+    cpu = CPU(rom, display, audio)
     display.update()
     fps = 200
     while True:
