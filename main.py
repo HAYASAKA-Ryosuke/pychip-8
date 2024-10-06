@@ -34,7 +34,7 @@ FONT_SPRIRITES = [
 class CPU:
     def __init__(self, rom, display):
         # RAM全体が4KB
-        self.ram = [0] * 4096
+        self.ram = [0] * 0x200
         for i in range(len(FONT_SPRIRITES)):
             self.ram[i] = FONT_SPRIRITES[i]
         self.ram[0x200:0x200 + len(rom)] = rom
@@ -68,6 +68,13 @@ class CPU:
             case 0xEE:
                 self.pc = self.stack[self.sp]
                 self.sp -= 1
+        self.next_pc()
+
+    def next_pc(self):
+        # self.pc = (self.pc + 2) & 0x0FFF
+        self.pc += 2
+        if self.pc < 0x200 or self.pc >= 0x1000:
+            raise Exception(f"pc error: {self.pc}")
 
     def execute_category_one(self, opcode):
         self.pc = opcode & 0x0FFF
@@ -81,29 +88,34 @@ class CPU:
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
         if self.V_register[X] == kk:
-            self.pc += 2
+            self.next_pc()
+        self.next_pc()
 
     def execute_category_four(self, opcode):
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
         if self.V_register[X] != kk:
-            self.pc += 2
+            self.next_pc()
+        self.next_pc()
 
     def execute_category_five(self, opcode):
         X = (opcode & 0x0F00) >> 8
         Y = (opcode & 0x00F0) >> 4
         if self.V_register[X] == self.V_register[Y]:
-            self.pc += 2
+            self.next_pc()
+        self.next_pc()
 
     def execute_category_six(self, opcode):
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
         self.V_register[X] = kk
+        self.next_pc()
 
     def execute_category_seven(self, opcode):
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
         self.V_register[X] += kk
+        self.next_pc()
 
     def execute_category_eight(self, opcode):
         X = (opcode & 0x0F00) >> 8
@@ -111,39 +123,34 @@ class CPU:
         match (opcode & 0x000F):
             case 0:
                 self.V_register[X] = self.V_register[Y]
-                return
             case 1:
                 self.V_register[X] |= self.V_register[Y]
-                return
             case 2:
                 self.V_register[X] &= self.V_register[Y]
-                return
             case 3:
                 self.V_register[X] ^= self.V_register[Y]
-                return
             case 4:
                 self.V_register[X] += self.V_register[Y]
-                return
             case 5:
                 self.V_register[X] -= self.V_register[Y]
-                return
             case 6:
                 self.V_register[X] >>= self.V_register[Y]
             case 7:
                 self.V_register[X] = self.V_register[Y] - self.V_register[X]
-                return
             case 0xE:
                 self.V_register[X] <<= 1
-                return
+        self.next_pc()
 
     def execute_category_nine(self, opcode):
         X = (opcode & 0x0F00) >> 8
         Y = (opcode & 0x00F0) >> 4
         if self.V_register[X] != self.V_register[Y]:
-            self.pc += 2
+            self.next_pc()
+        self.next_pc()
 
     def execute_category_a(self, opcode):
         self.I_register = opcode & 0x0FFF
+        self.next_pc()
 
     def execute_category_b(self, opcode):
         self.pc = self.V_register[0] + opcode & 0x0FFF
@@ -152,6 +159,7 @@ class CPU:
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
         self.V_register[X] = kk & random.randint(0, 255)
+        self.next_pc()
 
     def execute_category_d(self, opcode):
         X = (opcode & 0x0F00) >> 8
@@ -171,17 +179,19 @@ class CPU:
                     self.V_register[0xF] = 1
                 self.display.pixels[screen_y][screen_x] = new_pixel
         self.display.draw()
+        self.next_pc()
 
     def execute_category_e(self, opcode):
         X = (opcode & 0x0F00) >> 8
-        NN = (opcode & 0x00FF)
+        NN = opcode & 0x00FF
         match NN:
             case 0x9E:
                 if self.key_input_state == self.V_register[X]:
-                    self.pc += 2
+                    self.next_pc()
             case 0xA1:
                 if self.key_input_state != self.V_register[X]:
-                    self.pc += 2
+                    self.next_pc()
+        self.next_pc()
 
     def execute_category_f(self, opcode):
         X = (opcode & 0x0F00) >> 8
@@ -190,41 +200,44 @@ class CPU:
                 # ディレイタイマの値をVXにセット
                 self.V_register[X] = self.delay_timer
             case 0x0A:
-                print('0x0A')
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
                         cpu.set_key_input_state(KEYMAP.get(event.key))
                         self.V_register[X] = self.key_input_state
-                    else:
-                        # キー入力されるまで同じ命令を実行する
-                        self.pc -= 2
-
+                        self.next_pc()
             case 0x15:
                 # VXの値をディレイタイマにセット
                 self.delay_timer = self.V_register[X]
+                self.next_pc()
             case 0x18:
                 # 音を鳴らす
                 pass
+                self.next_pc()
             case 0x1E:
                 # Vレジスタの値をIレジスタに加算
                 self.I_register += self.V_register[X]
+                self.next_pc()
             case 0x29:
                 # Iレジスタにスプライトのアドレスをセット
                 self.I_register = self.V_register[X] * 5
+                self.next_pc()
             case 0x33:
                 self.ram[self.I_register] = self.V_register[X] // 100
                 self.ram[self.I_register + 1] = (self.V_register[X] // 10) % 10
                 self.ram[self.I_register + 2] = self.V_register[X] % 100
+                self.next_pc()
             case 0x55:
                 for i, data in enumerate(self.V_register[:X]):
                     self.ram[self.I_register + i] = data
                 self.I_register += X + 1
+                self.next_pc()
             case 0x65:
                 for i, data in enumerate(self.ram[self.I_register: self.I_register + X]):
                     self.V_register[i] = data
                 self.I_register += X + 1
+                self.next_pc()
             case _:
-                print(f"missing opcode: 0x{opcode:04X}")
+                print(f"missing opcode(f): 0x{opcode:04X}")
                 raise opcode
 
     def execute(self, opcode):
@@ -251,7 +264,7 @@ class CPU:
             case 0x9:
                 self.execute_category_nine(opcode)
             case 0xA:
-                self.set_index_register(opcode)
+                self.execute_category_a(opcode)
             case 0xB:
                 self.execute_category_b(opcode)
             case 0xC:
@@ -268,10 +281,10 @@ class CPU:
 
     def run(self):
         opcode = self.get_bytes()
+        print(f'opcode: 0x{opcode:04X}')
+        print(self.pc)
         self.execute(opcode)
         self.display.update()
-        if opcode != 0:
-            self.pc += 2
 
 
 class MonoDisplay:
@@ -316,7 +329,7 @@ class MonoDisplay:
 
 
 if __name__ == '__main__':
-    with open('./test_opcode.ch8', 'rb') as f:
+    with open('./2-ibm-logo.ch8', 'rb') as f:
         rom = f.read()
     display = MonoDisplay()
     cpu = CPU(rom, display)
