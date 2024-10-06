@@ -57,13 +57,15 @@ class CPU:
         self.key = [0] * 16
         self.delay_timer = 0
         self.key_input_state = None
+        self.last_key_press_time = 0
         self.audio = audio
 
         self.clock = pygame.time.Clock()
 
     def set_key_input_state(self, value):
-        self.key_input_state = value
-        print(self.key_input_state)
+        if self.last_key_press_time > 2:
+            self.key_input_state = value
+            self.last_key_press_time = 0
 
     def get_bytes(self):
         opcode = (self.ram[self.pc] << 8) | self.ram[self.pc + 1]
@@ -85,6 +87,7 @@ class CPU:
     def next_pc(self):
         # self.pc = (self.pc + 2) & 0x0FFF
         self.pc += 2
+        self.last_key_press_time += 1
         if self.pc < 0x200 or self.pc >= 0x1000:
             raise Exception(f"pc error: {self.pc}")
 
@@ -306,8 +309,8 @@ class CPU:
 
     def run(self):
         opcode = self.get_bytes()
-        print(f'opcode: 0x{opcode:04X}')
-        print(self.pc)
+        # print(f'opcode: 0x{opcode:04X}')
+        # print(self.pc)
         self.execute(opcode)
         self.display.update()
         cpu.update_timers()
@@ -355,7 +358,7 @@ class MonoDisplay:
 
 
 if __name__ == '__main__':
-    with open('./7-beep.ch8', 'rb') as f:
+    with open('./8-scrolling.ch8', 'rb') as f:
         rom = f.read()
     display = MonoDisplay()
     wave = generate_beep_sound(440, 1, 44100)
@@ -368,5 +371,7 @@ if __name__ == '__main__':
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 cpu.set_key_input_state(KEYMAP.get(event.key))
+            if event.type == pygame.KEYUP:
+                cpu.set_key_input_state(None)
         cpu.run()
         cpu.clock.tick(fps)
