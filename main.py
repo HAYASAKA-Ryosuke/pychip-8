@@ -1,6 +1,4 @@
-import sys
 import pygame
-import random
 import numpy
 from cpu import CPU
 from display import MonoDisplay
