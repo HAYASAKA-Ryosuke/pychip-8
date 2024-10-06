@@ -114,7 +114,7 @@ class CPU:
     def execute_category_seven(self, opcode):
         X = (opcode & 0x0F00) >> 8
         kk = opcode & 0x00FF
-        self.V_register[X] += kk
+        self.V_register[X] = (self.V_register[X] + kk) & 0xFF
         self.next_pc()
 
     def execute_category_eight(self, opcode):
@@ -329,7 +329,7 @@ class MonoDisplay:
 
 
 if __name__ == '__main__':
-    with open('./2-ibm-logo.ch8', 'rb') as f:
+    with open('./3-corax+.ch8', 'rb') as f:
         rom = f.read()
     display = MonoDisplay()
     cpu = CPU(rom, display)
