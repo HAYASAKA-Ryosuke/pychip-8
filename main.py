@@ -3,10 +3,10 @@ import pygame
 import random
 
 KEYMAP = {
-        pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3,
-        pygame.K_q: 4, pygame.K_w: 5, pygame.K_e: 6, pygame.K_r: 7,
-        pygame.K_a: 8, pygame.K_s: 9, pygame.K_d: 10, pygame.K_f: 11,
-        pygame.K_z: 12, pygame.K_x: 13, pygame.K_c: 14, pygame.K_v: 15
+        pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3, pygame.K_4: 0xC,
+        pygame.K_q: 4, pygame.K_w: 5, pygame.K_e: 6, pygame.K_r: 0xD,
+        pygame.K_a: 7, pygame.K_s: 8, pygame.K_d: 9, pygame.K_f: 0xE,
+        pygame.K_z: 0xA, pygame.K_x: 0, pygame.K_c: 0xB, pygame.K_v: 0xF
         }
 
 FONT_SPRIRITES = [
