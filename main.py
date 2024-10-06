@@ -34,7 +34,7 @@ FONT_SPRIRITES = [
 class CPU:
     def __init__(self, rom, display):
         # RAM全体が4KB
-        self.ram = [0] * 0x200
+        self.ram = [0] * 4096
         for i in range(len(FONT_SPRIRITES)):
             self.ram[i] = FONT_SPRIRITES[i]
         self.ram[0x200:0x200 + len(rom)] = rom
